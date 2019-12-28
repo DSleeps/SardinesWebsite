@@ -30,10 +30,13 @@ var interval = 1000;
 
 var map = null;
 var center = {lat: 42.359451, lng: -71.093117}
+var circle = null;
+
+var metersInLat = 110574.61087757687;
 
 function resetGame() {
 	// Reset objects
-	db.collection(cName).doc(docName).set({players: 0, found: 0, circleX: imWidth/2, circleY: imHeight/2, hideX: 0, hideY: 0, radius: 1000 * centerFrac, hiding: true, previousTime: new Date().getTime(), circleNum: 0});
+	db.collection(cName).doc(docName).set({players: 0, found: 0, circleX: center['lat'], circleY: center['lng'], hideX: 0, hideY: 0, radius: 1000 * centerFrac/metersInLat, hiding: true, previousTime: new Date().getTime(), circleNum: 0});
 }
 
 function initMap() {
@@ -54,16 +57,16 @@ function initMap() {
 }
 
 // Listen for clicks on the map
-var circle = null;
+var spotCircle = null;
 function addClickListener() {
 	map.addListener('click', function(e) {
 		selectedX = e.latLng.lat();
 		selectedY = e.latLng.lng();
 		if (hidingState == true) {
-			if (circle != null) {
-				circle.setMap(null);
+			if (spotCircle != null) {
+				spotCircle.setMap(null);
 			}
-			circle = new google.maps.Circle({
+			spotCircle = new google.maps.Circle({
 				strokeColor: '#FF0000',
 				strokeOpacity: 0.8,
 				strokeWeight: 2,
@@ -82,7 +85,8 @@ function drawMap(data) {
 }
 
 function recalculateCircle() {
-	var newRadius = Math.ceil(curRadius * radiusShrink);
+	console.log(curRadius);
+	var newRadius = curRadius * radiusShrink;
 	var maxDist = curRadius * (1 - radiusShrink);
 	var maxTheta = 2 * Math.PI;
 	console.log("HELLO");
@@ -91,16 +95,19 @@ function recalculateCircle() {
 	var newY = -1;
 
 	while (true) {
-		var newDist = Math.ceil(Math.random() * maxDist);
+		var newDist = Math.random() * maxDist;
 		var theta = Math.random() * maxTheta;
 
-		xOff = Math.ceil(newDist*Math.cos(theta));
-		yOff = Math.ceil(newDist*Math.sin(theta));
-
+		xOff = newDist*Math.cos(theta);
+		yOff = newDist*Math.sin(theta);
+		
 		newX = curX + xOff;
 		newY = curY + yOff;
-		var distance = Math.ceil(Math.pow( Math.pow(newX - hidingX, 2) + Math.pow(newY - hidingY, 2), 0.5 ));
+		var distance = (Math.pow( Math.pow(newX - hidingX, 2) + Math.pow(newY - hidingY, 2), 0.5 ));
 		
+		console.log(distance);
+		console.log(curRadius*radiusShrink);
+
 		// If the new point isn't contained, continue randomly creating new circles
 		if (distance < newRadius) {
 			break;
@@ -143,16 +150,24 @@ function updateCircle(data) {
 	var x = data.circleX;
 	var y = data.circleY;
 	var radius = data.radius;
-	var circle = new google.maps.Circle({
-      strokeColor: '#FF0000',
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      fillColor: '#FF0000',
-      fillOpacity: 0.35,
-      map: map,
-      center: {lat: x, lng: y},
-      radius: radius
-    });
+
+	// Remove the current circle and draw the new one
+	if (circle != null) {
+		circle.setMap(null);
+	}
+	if (hidingState != true) {
+		circle = new google.maps.Circle({
+			strokeColor: '#FF0000',
+			strokeOpacity: 0.8,
+			strokeWeight: 2,
+			fillColor: '#FF0000',
+			fillOpacity: 0.35,
+			map: map,
+			center: {lat: x, lng: y},
+			radius: radius * metersInLat
+		});
+	}
+	console.log('Drawing circle...');
 }
 
 function update(data) {
