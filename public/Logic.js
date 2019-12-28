@@ -28,20 +28,57 @@ var circleTimes = [1,1,1,1,1];
 
 var interval = 1000;
 
+var map = null;
+var center = {lat: 42.359451, lng: -71.093117}
+
 function resetGame() {
 	// Reset objects
-	db.collection(cName).doc(docName).set({players: 0, found: 0, circleX: imWidth/2, circleY: imHeight/2, hideX: 0, hideY: 0, radius: 2000 * centerFrac, hiding: true, previousTime: new Date().getTime(), circleNum: 0});
+	db.collection(cName).doc(docName).set({players: 0, found: 0, circleX: imWidth/2, circleY: imHeight/2, hideX: 0, hideY: 0, radius: 1000 * centerFrac, hiding: true, previousTime: new Date().getTime(), circleNum: 0});
+}
+
+function initMap() {
+	map = new google.maps.Map(document.getElementById('map'), {
+		center: center,
+		zoom: 19,
+		styles: [{
+			featureType: 'poi',
+			stylers: [{ visibility: 'off' }]  // Turn off points of interest.
+		}, {
+			featureType: 'transit.station',
+			stylers: [{ visibility: 'off' }]  // Turn off bus stations, train stations, etc.
+		}],
+		disableDoubleClickZoom: true,
+		streetViewControl: false
+	});
+	addClickListener();
+}
+
+// Listen for clicks on the map
+var circle = null;
+function addClickListener() {
+	map.addListener('click', function(e) {
+		selectedX = e.latLng.lat();
+		selectedY = e.latLng.lng();
+		if (hidingState == true) {
+			if (circle != null) {
+				circle.setMap(null);
+			}
+			circle = new google.maps.Circle({
+				strokeColor: '#FF0000',
+				strokeOpacity: 0.8,
+				strokeWeight: 2,
+				fillColor: '#FF0000',
+				fillOpacity: 0.35,
+				map: map,
+				center: {lat: selectedX, lng: selectedY},
+				radius: 10
+			});
+		}
+	});
 }
 
 function drawMap(data) {
-	var c = document.getElementById("myCanvas");
-	var ctx = c.getContext("2d");
-	var img = new Image();
-	img.onload = function() {
-		ctx.drawImage(img, 0, 0);
-		updateCircle(data);
-	};
-	img.src = 'MIT_map.png';
+	updateCircle(data);
 }
 
 function recalculateCircle() {
@@ -106,11 +143,16 @@ function updateCircle(data) {
 	var x = data.circleX;
 	var y = data.circleY;
 	var radius = data.radius;
-	var canvas = document.getElementById("myCanvas");
-	var ctx = canvas.getContext("2d");
-	ctx.beginPath();
-	ctx.arc(x, y, (1/centerFrac)*radius, 0, 2*Math.PI);
-	ctx.stroke();
+	var circle = new google.maps.Circle({
+      strokeColor: '#FF0000',
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: '#FF0000',
+      fillOpacity: 0.35,
+      map: map,
+      center: {lat: x, lng: y},
+      radius: radius
+    });
 }
 
 function update(data) {
@@ -225,6 +267,7 @@ db.collection(cName).doc(paramName).get().then(function(doc) {
 });
 
 // Now setup the canvas object
+/*
 var canvas = document.getElementById("myCanvas");
 canvas.addEventListener('click', function(e) {
 	var offX = e.offsetX;
@@ -240,6 +283,8 @@ canvas.addEventListener('click', function(e) {
 		ctx.stroke();
 	}
 });
+*/
+
 
 // Check the circle
 var checkingTime = setInterval(checkRecalculateCircle, interval);
