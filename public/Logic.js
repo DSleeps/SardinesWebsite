@@ -19,7 +19,7 @@ var curY = 0;
 var curRadius = 0;
 
 var radiusShrink = 0.5;
-var centerFrac = 0.5;
+var centerFrac = 0.75;
 
 var previousTime = 0;
 var circleNum = 0;
@@ -40,6 +40,8 @@ function resetGame() {
 }
 
 function initMap() {
+	// First update the parameters to get the correct center for the map
+	updateParams();
 	map = new google.maps.Map(document.getElementById('map'), {
 		center: center,
 		zoom: 19,
@@ -54,6 +56,73 @@ function initMap() {
 		streetViewControl: false
 	});
 	addClickListener();
+	initSearch();
+}
+
+function initSearch() {
+	var input = document.getElementById('search_box');
+  	var searchBox = new google.maps.places.SearchBox(input);
+    map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+	
+	var markers = [];
+	searchBox.addListener('places_changed', function() {
+		var places = searchBox.getPlaces();
+
+		if (places.length == 0) {
+			return;
+		}
+
+		// Clear out the old markers.
+		markers.forEach(function(marker) {
+			marker.setMap(null);
+		});
+		markers = [];
+
+		// For each place, get the icon, name and location.
+		var bounds = new google.maps.LatLngBounds();
+		places.forEach(function(place) {
+			// For now set the place to the center
+			center['lat'] = place.geometry.location.lat();
+			center['lng'] = place.geometry.location.lng();
+			
+			console.log("New center");
+			if (!place.geometry) {
+				console.log("Returned place contains no geometry");
+				return;
+			}
+			var icon = {
+				url: place.icon,
+				size: new google.maps.Size(71, 71),
+				origin: new google.maps.Point(0, 0),
+				anchor: new google.maps.Point(17, 34),
+				scaledSize: new google.maps.Size(25, 25)
+			};
+
+			// Create a marker for each place.
+			/*
+			markers.push(new google.maps.Marker({
+				map: map,
+				icon: icon,
+				title: place.name,
+				position: place.geometry.location
+			}));
+			*/
+
+			if (place.geometry.viewport) {
+				// Only geocodes have viewport.
+				bounds.union(place.geometry.viewport);
+			} else {
+				bounds.extend(place.geometry.location);
+			}
+		});
+		map.fitBounds(bounds);
+		
+		// Reset the game to update the center
+		if (hidingState == true) {
+			resetGame();	
+			console.log("Game reset");
+		}
+	});	
 }
 
 // Listen for clicks on the map
@@ -156,6 +225,7 @@ function updateCircle(data) {
 		circle.setMap(null);
 	}
 	if (hidingState != true) {
+		console.log(centerFrac);
 		circle = new google.maps.Circle({
 			strokeColor: '#FF0000',
 			strokeOpacity: 0.8,
@@ -164,7 +234,7 @@ function updateCircle(data) {
 			fillOpacity: 0.35,
 			map: map,
 			center: {lat: x, lng: y},
-			radius: radius * metersInLat
+			radius: (1/centerFrac) * radius * metersInLat
 		});
 	}
 	console.log('Drawing circle...');
@@ -203,6 +273,7 @@ function update(data) {
 		previousTime = data.previousTime;
 		circleNum = data.circleNum;
 		
+		console.log(hidingState);
 		// Draw the stuffz
 		drawMap(data);
 	}
@@ -265,21 +336,36 @@ db.collection(cName).doc(docName)
 		update(doc.data());
     });
 
-// Update the parameters
-db.collection(cName).doc(paramName).get().then(function(doc) {
-   	if (doc.exists) {
-		// Update the parameters
-		centerFrac = doc.data().centerFrac;
-		radiusShrink = doc.data().radiusShrink;
-		circleTimes = doc.data().circleTimes;
-		update();   		
-	} else {
-       	// doc.data() will be undefined in this case
-       	console.log("No such document!");
-   	}
-}).catch(function(error) {
-   	console.log("Error getting document:", error);
-});
+function updateParams() {
+	// Update the parameters
+	db.collection(cName).doc(paramName).get().then(function(doc) {
+		if (doc.exists) {
+			// Update the parameters
+			centerFrac = doc.data().centerFrac;
+			radiusShrink = doc.data().radiusShrink;
+			circleTimes = doc.data().circleTimes;
+			update();   		
+		} else {
+			// doc.data() will be undefined in this case
+			console.log("No such document!");
+		}
+	}).catch(function(error) {
+		console.log("Error getting document:", error);
+	});
+
+	db.collection(cName).doc(docName).get().then(function(doc) {
+		if (doc.exists) {
+			// Update the parameters
+			center['lat'] = doc.data().circleX;
+			center['lng'] = doc.data().circleY;
+		} else {
+			// doc.data() will be undefined in this case
+			console.log("No such document!");
+		}
+	}).catch(function(error) {
+		console.log("Error getting document:", error);
+	});
+}
 
 // Now setup the canvas object
 /*
@@ -303,4 +389,3 @@ canvas.addEventListener('click', function(e) {
 
 // Check the circle
 var checkingTime = setInterval(checkRecalculateCircle, interval);
-
